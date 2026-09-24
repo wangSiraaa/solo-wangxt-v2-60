@@ -1,0 +1,45 @@
+{
+  "replayed": false,
+  "plan": {
+    "id": 7,
+    "planNo": "PL-000007",
+    "title": "跨午夜道岔检修",
+    "workType": "SIGNAL_REPAIR",
+    "status": "ACTIVE",
+    "windowStart": "2026-09-24T23:00:00Z",
+    "windowEnd": "2026-09-25T02:00:00Z",
+    "plannedFinish": "2026-09-25T01:30:00Z",
+    "startedAt": "2026-09-24T23:30:00Z",
+    "closedAt": null,
+    "replacedByPlanId": null,
+    "sections": [
+      { "sectionCode": "S02", "protectionConfirmed": true, "protectedByPersonId": 2 }
+    ],
+    "assignees": [
+      { "personId": 1, "personName": "张工", "role": "信号工", "arrived": true, "qualificationCovers": true, "qualificationNote": "资质有效期至 2027-01-01T00:00:00Z" },
+      { "personId": 3, "personName": "王负责", "role": "现场负责人", "arrived": true, "qualificationCovers": true, "qualificationNote": "资质有效期至 2026-09-25T23:00:00Z" }
+    ],
+    "closeoutItems": [
+      { "key": "SITE_REVIEW", "label": "现场设备状态复核完成、线路具备放行条件", "confirmed": false, "confirmedByPersonId": null, "confirmedAt": null },
+      { "key": "PERSONNEL_WITHDRAWAL", "label": "全部作业人员、机具、材料已撤离限界", "confirmed": false, "confirmedByPersonId": null, "confirmedAt": null }
+    ],
+    "receipts": [
+      {
+        "receiptNo": "SIM-RCP-20260924-120000-0001",
+        "kind": "SCHEDULE",
+        "status": "ACCEPTED",
+        "payload": "[SIMULATION] 调度模拟受理：计划 PL-000007，作业[SIGNAL_REPAIR]，区段[S02]，窗口 2026-09-24T23:00:00Z ~ 2026-09-25T02:00:00Z，预计结束 2026-09-25T01:30:00Z，备注：排定封锁窗口。本回执由本地模拟器生成，不代表真实行车许可。",
+        "createdAt": "2026-09-24T12:00:00Z",
+        "simulated": true
+      }
+    ]
+  },
+  "receipt": {
+    "receiptNo": "SIM-RCP-20260924-233000-0002",
+    "kind": "START",
+    "status": "PERMISSION_GRANTED",
+    "payload": "[SIMULATION] 开工许可模拟回执：计划 PL-000007 封锁生效，保护区段[S02]。本回执由本地模拟器生成，不驱动任何真实设备。",
+    "createdAt": "2026-09-24T23:30:00Z",
+    "simulated": true
+  }
+}

@@ -1,0 +1,1068 @@
+{
+  "openapi" : "3.0.1",
+  "info" : {
+    "title" : "信号检修封锁窗口许可服务（本地模拟演练）",
+    "description" : "仅供本地模拟演练的封锁窗口许可服务，**不连接、不控制任何真实铁路设备**。\n\n业务规则要点：\n* 一个计划可占用多个相邻区段；\n* 窗口重叠不必然冲突——必须按“互斥作业矩阵”逐对判断，禁止只比设备编号；\n* 开工前须同时满足：窗口已开放、各区段保护到位、人员到岗且资质覆盖到预计结束时刻；\n* 资质在预计结束前失效的计划必须重新安排；\n* 销记前逐项确认复核与人员撤离；计划销记后迟到的开工消息一律拒绝。\n",
+    "contact" : {
+      "name" : "Signal Maintenance Planner (simulation)"
+    },
+    "license" : {
+      "name" : "Simulation-only, no operational use"
+    },
+    "version" : "v1"
+  },
+  "servers" : [ {
+    "url" : "http://localhost",
+    "description" : "Generated server url"
+  } ],
+  "tags" : [ {
+    "name" : "基础数据",
+    "description" : "人员、资质、区段、互斥作业矩阵维护（模拟）"
+  }, {
+    "name" : "封锁窗口计划",
+    "description" : "计划排定、保护确认、开工与销记（本地模拟，不控制真实设备）"
+  } ],
+  "paths" : {
+    "/api/reference/sections" : {
+      "get" : {
+        "tags" : [ "基础数据" ],
+        "summary" : "区段列表",
+        "operationId" : "listSections",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/SectionView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "基础数据" ],
+        "summary" : "登记区段（可指定相邻区段 adjacentTo，多区段计划会校验连通性）",
+        "operationId" : "createSection",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SectionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SectionView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reference/qualifications" : {
+      "get" : {
+        "tags" : [ "基础数据" ],
+        "summary" : "资质列表",
+        "operationId" : "listQualifications",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/QualificationView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "基础数据" ],
+        "summary" : "为人员登记作业资质及有效期",
+        "operationId" : "addQualification",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/QualificationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/QualificationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reference/persons" : {
+      "get" : {
+        "tags" : [ "基础数据" ],
+        "summary" : "人员列表",
+        "operationId" : "listPeople",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PersonView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "基础数据" ],
+        "summary" : "登记人员",
+        "operationId" : "createPerson",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PersonRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reference/mutex-rules" : {
+      "get" : {
+        "tags" : [ "基础数据" ],
+        "summary" : "互斥作业矩阵",
+        "operationId" : "listMutexRules",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/MutexRuleView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "基础数据" ],
+        "summary" : "登记/更新互斥作业矩阵条目（冲突判断的唯一权威依据，不允许只比设备编号）",
+        "operationId" : "putMutexRule",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MutexRuleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MutexRuleView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans" : {
+      "get" : {
+        "tags" : [ "封锁窗口计划" ],
+        "summary" : "全部计划",
+        "operationId" : "list",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PlanView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "封锁窗口计划" ],
+        "summary" : "创建封锁窗口计划（可占用多个相邻区段，状态 DRAFT）",
+        "operationId" : "create",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreatePlanRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{id}/start" : {
+      "post" : {
+        "tags" : [ "封锁窗口计划" ],
+        "summary" : "发送开工消息：条件全部满足才开工并返回模拟开工许可回执；\n重复请求携带同一 idempotencyKey 时回放首次结果（开工确认重试安全）；\n计划已销记后迟到的开工消息一律 422 拒绝，不得重新开工。\n",
+        "operationId" : "start",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StartRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ActionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{id}/schedule" : {
+      "post" : {
+        "tags" : [ "封锁窗口计划" ],
+        "summary" : "排定/改期封锁窗口；按互斥作业矩阵校验冲突，返回模拟调度受理回执",
+        "operationId" : "schedule",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ScheduleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{id}/reschedule" : {
+      "post" : {
+        "tags" : [ "封锁窗口计划" ],
+        "summary" : "重新安排（如资质在预计结束前失效）：原计划作废，返回接替计划",
+        "operationId" : "reschedule",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ScheduleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{id}/protections" : {
+      "post" : {
+        "tags" : [ "封锁窗口计划" ],
+        "summary" : "逐项确认某区段封锁保护到位",
+        "operationId" : "confirmProtection",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ProtectionConfirmRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{id}/closeout" : {
+      "post" : {
+        "tags" : [ "封锁窗口计划" ],
+        "summary" : "销记：所有清单项逐项确认后模拟解除封锁；重复请求按 idempotencyKey 回放",
+        "operationId" : "closeout",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CloseoutRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ActionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{id}/closeout-items/{itemKey}" : {
+      "post" : {
+        "tags" : [ "封锁窗口计划" ],
+        "summary" : "逐项确认销记清单项（SITE_REVIEW 现场复核 / PERSONNEL_WITHDRAWAL 人员撤离）",
+        "operationId" : "confirmCloseoutItem",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
+          "name" : "itemKey",
+          "in" : "path",
+          "description" : "SITE_REVIEW 或 PERSONNEL_WITHDRAWAL",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CloseoutItemConfirmRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{id}/arrivals" : {
+      "post" : {
+        "tags" : [ "封锁窗口计划" ],
+        "summary" : "登记指派人员到岗",
+        "operationId" : "markArrival",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ArrivalMarkRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{id}" : {
+      "get" : {
+        "tags" : [ "封锁窗口计划" ],
+        "summary" : "计划详情（区段保护、人员到岗、资质覆盖、销记清单、模拟回执）",
+        "operationId" : "get",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{id}/preconditions" : {
+      "get" : {
+        "tags" : [ "封锁窗口计划" ],
+        "summary" : "开工前条件预检：逐项列出缺失条件（窗口/保护/到岗/资质/矩阵冲突）",
+        "operationId" : "preconditions",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PreconditionsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "SectionRequest" : {
+        "required" : [ "code", "name" ],
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "adjacentTo" : {
+            "type" : "string"
+          }
+        }
+      },
+      "SectionView" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "adjacentTo" : {
+            "type" : "string"
+          }
+        }
+      },
+      "QualificationRequest" : {
+        "required" : [ "personId", "validFrom", "validUntil", "workType" ],
+        "type" : "object",
+        "properties" : {
+          "personId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "workType" : {
+            "type" : "string"
+          },
+          "validFrom" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "validUntil" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "QualificationView" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "personId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "workType" : {
+            "type" : "string"
+          },
+          "validFrom" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "validUntil" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "PersonRequest" : {
+        "required" : [ "name", "role" ],
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          }
+        }
+      },
+      "PersonView" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          }
+        }
+      },
+      "MutexRuleRequest" : {
+        "required" : [ "workTypeA", "workTypeB" ],
+        "type" : "object",
+        "properties" : {
+          "workTypeA" : {
+            "type" : "string"
+          },
+          "workTypeB" : {
+            "type" : "string"
+          },
+          "exclusive" : {
+            "type" : "boolean"
+          },
+          "remark" : {
+            "type" : "string"
+          }
+        }
+      },
+      "MutexRuleView" : {
+        "type" : "object",
+        "properties" : {
+          "workTypeA" : {
+            "type" : "string"
+          },
+          "workTypeB" : {
+            "type" : "string"
+          },
+          "exclusive" : {
+            "type" : "boolean"
+          },
+          "remark" : {
+            "type" : "string"
+          }
+        }
+      },
+      "CreatePlanRequest" : {
+        "required" : [ "personIds", "plannedFinish", "sectionCodes", "title", "windowEnd", "windowStart", "workType" ],
+        "type" : "object",
+        "properties" : {
+          "title" : {
+            "type" : "string"
+          },
+          "workType" : {
+            "type" : "string"
+          },
+          "windowStart" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "windowEnd" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "plannedFinish" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "sectionCodes" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "personIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "integer",
+              "format" : "int64"
+            }
+          }
+        }
+      },
+      "AssigneeStateView" : {
+        "type" : "object",
+        "properties" : {
+          "personId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "personName" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "arrived" : {
+            "type" : "boolean"
+          },
+          "qualificationCovers" : {
+            "type" : "boolean"
+          },
+          "qualificationNote" : {
+            "type" : "string"
+          }
+        }
+      },
+      "CloseoutItemView" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "confirmed" : {
+            "type" : "boolean"
+          },
+          "confirmedByPersonId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "confirmedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "PlanView" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "planNo" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "workType" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "windowStart" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "windowEnd" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "plannedFinish" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "startedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "closedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "replacedByPlanId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "sections" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SectionStateView"
+            }
+          },
+          "assignees" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AssigneeStateView"
+            }
+          },
+          "closeoutItems" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CloseoutItemView"
+            }
+          },
+          "receipts" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReceiptView"
+            }
+          }
+        }
+      },
+      "ReceiptView" : {
+        "type" : "object",
+        "properties" : {
+          "receiptNo" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "payload" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "simulated" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "SectionStateView" : {
+        "type" : "object",
+        "properties" : {
+          "sectionCode" : {
+            "type" : "string"
+          },
+          "protectionConfirmed" : {
+            "type" : "boolean"
+          },
+          "protectedByPersonId" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "StartRequest" : {
+        "required" : [ "confirmedByPersonId" ],
+        "type" : "object",
+        "properties" : {
+          "confirmedByPersonId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "idempotencyKey" : {
+            "type" : "string"
+          }
+        }
+      },
+      "ActionResponse" : {
+        "type" : "object",
+        "properties" : {
+          "replayed" : {
+            "type" : "boolean"
+          },
+          "plan" : {
+            "$ref" : "#/components/schemas/PlanView"
+          },
+          "receipt" : {
+            "$ref" : "#/components/schemas/ReceiptView"
+          }
+        }
+      },
+      "ScheduleRequest" : {
+        "required" : [ "plannedFinish", "windowEnd", "windowStart" ],
+        "type" : "object",
+        "properties" : {
+          "windowStart" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "windowEnd" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "plannedFinish" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "ProtectionConfirmRequest" : {
+        "required" : [ "personId", "sectionCode" ],
+        "type" : "object",
+        "properties" : {
+          "sectionCode" : {
+            "type" : "string"
+          },
+          "personId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "note" : {
+            "type" : "string"
+          }
+        }
+      },
+      "CloseoutRequest" : {
+        "required" : [ "confirmedByPersonId" ],
+        "type" : "object",
+        "properties" : {
+          "confirmedByPersonId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "idempotencyKey" : {
+            "type" : "string"
+          }
+        }
+      },
+      "CloseoutItemConfirmRequest" : {
+        "required" : [ "confirmedByPersonId" ],
+        "type" : "object",
+        "properties" : {
+          "confirmedByPersonId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "idempotencyKey" : {
+            "type" : "string"
+          }
+        }
+      },
+      "ArrivalMarkRequest" : {
+        "required" : [ "personId" ],
+        "type" : "object",
+        "properties" : {
+          "personId" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "ConditionViolation" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "enum" : [ "WINDOW_NOT_OPEN", "WINDOW_EXPIRED", "PROTECTION_NOT_READY", "PERSONNEL_NOT_ARRIVED", "QUALIFICATION_MISSING", "QUALIFICATION_EXPIRES_BEFORE_FINISH", "MUTEX_CONFLICT", "NOT_SCHEDULED", "PLAN_SUPERSEDED", "PLAN_ALREADY_ACTIVE", "PLAN_ALREADY_CLOSED", "CLOSEOUT_ITEMS_PENDING", "SECTIONS_NOT_ADJACENT", "INVALID_WINDOW", "SECTION_NOT_FOUND", "PERSON_NOT_FOUND", "ILLEGAL_STATE" ]
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "refs" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "object"
+            }
+          }
+        }
+      },
+      "PreconditionsView" : {
+        "type" : "object",
+        "properties" : {
+          "planNo" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "startAllowed" : {
+            "type" : "boolean"
+          },
+          "violations" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ConditionViolation"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,4 @@
-
-
-# SOLO initial credential and cache exclusions
+# Credential material must never enter the delivery repository.
 .env
 .env.*
 !.env.example
@@ -17,9 +15,11 @@ id_ed25519
 *.key
 *.p12
 *.pfx
-node_modules/
-.venv/
-venv/
-__pycache__/
-.pytest_cache/
+
+# Java build outputs and local IDE metadata.
+target/
+*.log
+.idea/
+*.iml
+.vscode/
 .DS_Store
