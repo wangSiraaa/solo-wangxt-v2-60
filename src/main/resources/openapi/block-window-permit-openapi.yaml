@@ -1,0 +1,428 @@
+openapi: 3.0.3
+info:
+  title: 封锁窗口许可服务（本地模拟演练）
+  version: v1
+  description: >-
+    仅供本地培训演练的封锁窗口许可 API：计划编排、人员资质、区段保护、开工与销记。
+
+
+    **安全声明**：本服务不连接、不控制任何真实铁路信号/联锁/供电/行车设备；
+    所有“调度回执”均为本地生成的模拟文本，禁止用于真实作业组织。
+
+
+    关键规则：
+
+      1. 计划可占用多个相邻区段，区段必须在相邻关系表中连通。
+
+      2. 冲突判定 = 时间重叠 AND 占用区段相交 AND 命中互斥作业矩阵；
+         矩阵空白即兼容，禁止只比设备编号。
+
+      3. 人员资质必须覆盖作业类型，且在窗口预计结束时间前不得失效，否则须重新安排。
+
+      4. 开工要求四个必需岗位到齐、保护条件逐项确认、无矩阵冲突、处于计划时间窗内。
+
+      5. 销记要求保护撤除逐项复核（REVIEW）与人员逐人撤离确认（EVACUATION）齐备。
+
+      6. 迟到的开工消息对已销记计划只留痕拒绝，状态保持 RELEASED，绝不重新开工。
+
+      7. 开工/销记失败返回 422，body.missingConditions 逐项列出具体缺失条件。
+
+      8. 开工/销记支持幂等键，确认重试重放首次结果。
+  license:
+    name: Simulation-only, for training
+servers:
+  - url: http://localhost:8080
+    description: 本地演练服务（非生产地址）
+tags:
+  - name: 封锁窗口
+  - name: 演练基础数据
+paths:
+  /api/plans:
+    post:
+      tags: [封锁窗口]
+      summary: 编制封锁窗口计划
+      description: 占用多个区段时校验相邻连通性；返回互斥矩阵预检结果（预检不阻断，开工才设闸门）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlanRequest'
+            examples:
+              crossMidnight:
+                summary: 跨午夜窗口（UTC 22:30 → 次日 01:30）
+                value:
+                  planNo: BW-2026-0930-CROSS
+                  title: 跨午夜信号更换演练
+                  workType: SIGNAL_REPLACEMENT
+                  sectionCodes: [S02, S03]
+                  plannedStart: '2026-09-30T22:30:00Z'
+                  plannedEnd: '2026-10-01T01:30:00Z'
+                  zoneId: ZONE-A
+      responses:
+        '201':
+          description: 已创建（含矩阵预检）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plan:
+                    $ref: '#/components/schemas/PlanView'
+                  mutexPreflight:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MutexPreflightHit'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/plans/{planNo}:
+    get:
+      tags: [封锁窗口]
+      summary: 查询计划详情
+      parameters:
+        - $ref: '#/components/parameters/PlanNo'
+      responses:
+        '200':
+          description: OK
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/plans/{planNo}/assignments:
+    post:
+      tags: [封锁窗口]
+      summary: 派工（资质须覆盖作业类型且有效期超过窗口预计结束）
+      parameters:
+        - $ref: '#/components/parameters/PlanNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [badge, roleOnPlan]
+              properties:
+                badge: { type: string, example: B1001 }
+                roleOnPlan:
+                  type: string
+                  enum: [WORK_LEADER, SAFETY_OFFICER, CONTACT, PROTECTOR]
+      responses:
+        '201': { description: 派工成功 }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/plans/{planNo}/protections:
+    post:
+      tags: [封锁窗口]
+      summary: 追加区段保护条件
+      parameters:
+        - $ref: '#/components/parameters/PlanNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sectionCode, requirementCode, label]
+              properties:
+                sectionCode: { type: string, example: S02 }
+                requirementCode: { type: string, example: EXTRA_FENCE }
+                label: { type: string, example: 临时围挡已设置 }
+      responses:
+        '201': { description: 已追加 }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/plans/protections/{id}/confirm:
+    post:
+      tags: [封锁窗口]
+      summary: 逐项确认区段保护条件
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmedBy]
+              properties:
+                confirmedBy: { type: string, example: B1004 }
+      responses:
+        '200': { description: 已确认 }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/plans/{planNo}/start:
+    post:
+      tags: [封锁窗口]
+      summary: 开工确认（幂等；失败 422 返回逐项缺失条件）
+      parameters:
+        - $ref: '#/components/parameters/PlanNo'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotencyKey:
+                  type: string
+                  description: 开工确认重试时必须复用同一把键
+                  example: start-bw-001-01
+                operatorBadge: { type: string, example: B1001 }
+      responses:
+        '200':
+          description: 开工受理或幂等重放（replayed=true），附模拟调度回执
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartResultView'
+        '409':
+          description: 重复开工 / 迟到消息被拒（LATE_START_AFTER_RELEASE）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '422':
+          description: 前置条件不满足（逐项缺失，绝非笼统审批失败）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreconditionError' }
+  /api/plans/{planNo}/release-checks:
+    post:
+      tags: [封锁窗口]
+      summary: 销记前逐项复核（REVIEW 保护撤除 / EVACUATION 人员撤离）
+      parameters:
+        - $ref: '#/components/parameters/PlanNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [checkType, refKey, label, confirmedBy, confirmed]
+              properties:
+                checkType: { type: string, enum: [REVIEW, EVACUATION] }
+                refKey:
+                  type: string
+                  description: REVIEW 用 "区段/保护条件码"；EVACUATION 用证件号
+                  example: S02/STOP_SIGNAL
+                sectionCode: { type: string, example: S02 }
+                label: { type: string, example: 停车信号牌已撤除并复核 }
+                confirmedBy: { type: string, example: B1002 }
+                confirmed: { type: boolean, example: true }
+      responses:
+        '201': { description: 复核项已记录 }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/plans/{planNo}/release:
+    post:
+      tags: [封锁窗口]
+      summary: 销记（幂等；复核/撤离不齐时 422 逐项列出）
+      parameters:
+        - $ref: '#/components/parameters/PlanNo'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotencyKey: { type: string, example: rel-bw-001-01 }
+                operatorBadge: { type: string, example: B1001 }
+      responses:
+        '200':
+          description: 销记受理或幂等重放，附模拟调度回执
+        '422':
+          description: 销记前置条件不满足
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreconditionError' }
+  /api/plans/{planNo}/late-start:
+    post:
+      tags: [封锁窗口]
+      summary: 演练投递迟到开工消息（已销记计划保持 RELEASED）
+      parameters:
+        - $ref: '#/components/parameters/PlanNo'
+        - name: messageId
+          in: query
+          schema: { type: string }
+        - name: operatorBadge
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: 消息被拒并留痕（accepted=false, planStatus=RELEASED）
+  /api/plans/{planNo}/confirmations:
+    get:
+      tags: [封锁窗口]
+      summary: 审计记录（开工确认/重试/迟到消息/销记复核）
+      parameters:
+        - $ref: '#/components/parameters/PlanNo'
+      responses:
+        '200': { description: OK }
+  /api/ref-data/sections:
+    get:
+      tags: [演练基础数据]
+      summary: 模拟区段及相邻关系
+      responses:
+        '200': { description: OK }
+  /api/ref-data/personnel:
+    get:
+      tags: [演练基础数据]
+      summary: 模拟人员及资质有效期
+      responses:
+        '200': { description: OK }
+    post:
+      tags: [演练基础数据]
+      summary: 新增演练人员
+      responses:
+        '201': { description: 已新增 }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/ref-data/mutex-matrix:
+    get:
+      tags: [演练基础数据]
+      summary: 互斥作业矩阵
+      responses:
+        '200': { description: OK }
+    post:
+      tags: [演练基础数据]
+      summary: 追加互斥矩阵条目
+      responses:
+        '201': { description: 已追加 }
+        '409': { $ref: '#/components/responses/Conflict' }
+components:
+  parameters:
+    PlanNo:
+      name: planNo
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+    Conflict:
+      description: 状态/唯一约束/相邻性冲突
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+  schemas:
+    CreatePlanRequest:
+      type: object
+      required: [planNo, title, workType, sectionCodes, plannedStart, plannedEnd, zoneId]
+      properties:
+        planNo: { type: string }
+        title: { type: string }
+        workType:
+          type: string
+          enum: [TRACK_WORK, OVERHEAD_LINE_WORK, SIGNAL_REPLACEMENT, CABLE_TEST, ROUTINE_INSPECTION]
+        sectionCodes:
+          type: array
+          minItems: 1
+          items: { type: string }
+        plannedStart: { type: string, format: date-time }
+        plannedEnd: { type: string, format: date-time }
+        zoneId: { type: string }
+    PlanView:
+      type: object
+      properties:
+        planNo: { type: string }
+        status: { type: string, enum: [DRAFT, IN_PROGRESS, RELEASED] }
+        workType: { type: string }
+        sectionCodes:
+          type: array
+          items: { type: string }
+        plannedStart: { type: string, format: date-time }
+        plannedEnd: { type: string, format: date-time }
+        crossesMidnightUtc: { type: boolean }
+        assignments:
+          type: array
+          items: { $ref: '#/components/schemas/AssignmentView' }
+        protections:
+          type: array
+          items: { $ref: '#/components/schemas/ProtectionView' }
+        receipts:
+          type: array
+          items: { $ref: '#/components/schemas/ReceiptView' }
+    AssignmentView:
+      type: object
+      properties:
+        badge: { type: string }
+        name: { type: string }
+        roleOnPlan: { type: string }
+        qualification: { type: string }
+        qualValidUntil: { type: string, format: date-time }
+        qualCoversWindow: { type: boolean }
+    ProtectionView:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        sectionCode: { type: string }
+        requirementCode: { type: string }
+        label: { type: string }
+        confirmed: { type: boolean }
+        confirmedBy: { type: string }
+        confirmedAt: { type: string, format: date-time }
+    ReceiptView:
+      type: object
+      properties:
+        receiptNo: { type: string, example: SIM-DISP-202609302235-00001 }
+        issuedAt: { type: string, format: date-time }
+        dispatchStatus: { type: string, enum: [DISPATCHED, CLOSED] }
+        displaySummary: { type: string }
+        simulated: { type: boolean, example: true }
+        note: { type: string }
+    MutexPreflightHit:
+      type: object
+      properties:
+        otherPlanNo: { type: string }
+        otherWorkType: { type: string }
+        sharedSections:
+          type: array
+          items: { type: string }
+        mutexRule: { type: string, example: TRACK_WORK<->SIGNAL_REPLACEMENT }
+        note: { type: string }
+    StartResultView:
+      type: object
+      properties:
+        started: { type: boolean }
+        replayed: { type: boolean }
+        planNo: { type: string }
+        status: { type: string }
+        now: { type: string, format: date-time }
+        dispatchReceipt: { $ref: '#/components/schemas/ReceiptView' }
+        missingConditions:
+          type: array
+          items: { $ref: '#/components/schemas/MissingCondition' }
+        message: { type: string }
+    MissingCondition:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - ROLE_NOT_ASSIGNED
+            - PERSONNEL_QUALIFICATION_MISMATCH
+            - QUALIFICATION_EXPIRES_BEFORE_PLANNED_END
+            - PROTECTION_NOT_CONFIRMED
+            - NO_PROTECTION_DEFINED
+            - MUTEX_MATRIX_CONFLICT
+            - BEFORE_PLANNED_START
+            - WINDOW_ALREADY_ENDED
+            - REVIEW_ITEM_MISSING
+            - PERSONNEL_NOT_EVACUATED
+        message: { type: string }
+        detail: { type: object, additionalProperties: true }
+    PreconditionError:
+      type: object
+      properties:
+        errorCode: { type: string, example: START_PRECONDITION_NOT_MET }
+        message: { type: string }
+        missingConditions:
+          type: array
+          items: { $ref: '#/components/schemas/MissingCondition' }
+    ErrorBody:
+      type: object
+      properties:
+        errorCode: { type: string }
+        message: { type: string }
+        timestamp: { type: string, format: date-time }
